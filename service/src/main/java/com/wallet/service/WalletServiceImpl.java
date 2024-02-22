@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.wallet.enums.OperationType.DEPOSIT;
@@ -31,26 +32,22 @@ public class WalletServiceImpl implements WalletService {
     public WalletDto makeADeposit(IncomingDataDto incomingData) {
         log.info("Поступили данные: {}", incomingData);
         Wallet wallet = findWallet(incomingData.getWalletId());
-        Wallet saved = new Wallet();
         if (DEPOSIT.equals(incomingData.getOperationType())) {
             wallet.setAmount(incomingData.getAmount().add(new BigDecimal(wallet.getAmount())).toPlainString());
-            saved = repository.save(wallet);
-            log.info("Внесен депозит: {}", saved);
+            log.info("Внесен депозит: {}", wallet);
         }
         if (WITHDRAW.equals(incomingData.getOperationType())) {
             if (new BigDecimal(wallet.getAmount()).subtract(incomingData.getAmount()).compareTo(ZERO) < 0) {
                 throw new IncorrectDataException("Недостаточно средств для снятия со счета");
             } else {
                 wallet.setAmount(incomingData.getAmount().subtract(new BigDecimal(wallet.getAmount())).toPlainString());
-                saved = repository.save(wallet);
-                log.info("Снятие со счета: {}", saved);
+                log.info("Снятие со счета: {}", wallet);
             }
         }
-        return mapper.toWalletDto(saved);
+        return mapper.toWalletDto(wallet);
     }
 
     @Override
-    @Transactional
     public WalletDto getData(UUID walletId) {
         Wallet wallet = findWallet(walletId);
         log.info("Получение данных: {}", wallet);
@@ -58,7 +55,11 @@ public class WalletServiceImpl implements WalletService {
     }
 
     private Wallet findWallet(UUID walletId) {
-        return repository.findById(walletId)
-                .orElseThrow(() -> new NotFoundException("Кошелёк не найден"));
+        Optional<Wallet> wallet = repository.findByWalletId(walletId);
+        if (wallet.isPresent()) {
+            return wallet.get();
+        } else {
+            throw new NotFoundException("Кошелёк не найден");
+        }
     }
 }
